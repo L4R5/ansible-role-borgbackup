@@ -42,17 +42,17 @@
     group: root
     mode: "0755"
 
-- name: Ensure root has SSH key.
+- name: Ensure backup user has SSH key.
   user:
-    name: "root"
+    name: "{{ borgmatic_backup_user }}"
     generate_ssh_key: yes
     ssh_key_file: "{{ ssh_key_file }}"
     ssh_key_type: ed25519
-  register: root_user
+  register: backup_user
 
-- name: Print key created for root user (use for remote repo)
+- name: Print key created for backup user (use for remote repo)
   debug:
-    var: root_user['ssh_public_key']
+    var: backup_user['ssh_public_key']
 
 - name: Create new repository for server
   borgbase:
@@ -82,53 +82,54 @@
           {% endif %}
   when: create_repo
 
-- name: Ensures /etc/borgmatic exists
+- name: Ensure backup user borgmatic config directory exists
   file:
-    path: /etc/borgmatic
+    path: "{{ backup_user.home }}/.config/borgmatic"
     state: directory
     mode: 0700
-    owner: root
+    owner: "{{ borgmatic_backup_user }}"
 
 - name: Add Borgmatic Configuration
   template:
     src: config.yaml.j2
-    dest: "/etc/borgmatic/{{ borgmatic_config_name }}"
+    dest: "{{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }}"
     mode: 0600
+    owner: "{{ borgmatic_backup_user }}"
 
 - name: Add cron-job for borgmatic (large repo, create and check separate)
   block:
     - name: Add cron job for regular create and prune
       cron:
-        name: "{{ borgmatic_cron_name }}"
+        name: "{{ borgmatic_cron_name }}-{{ borgmatic_config_name }}"
         hour: "{{ borgmatic_cron_hour }}"
         minute: "{{ borgmatic_cron_minute }}"
-        user: "root"
+        user: "{{ borgmatic_backup_user }}"
         cron_file: "{{ borgmatic_cron_name }}"
-        job: "borgmatic -c /etc/borgmatic/{{ borgmatic_config_name }} --create --prune"
+        job: "borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }} --create --prune"
     - name: Add cron job for infrequent checks
       cron:
-        name: "{{ borgmatic_cron_name }}-check"
+        name: "{{ borgmatic_cron_name }}-check-{{ borgmatic_config_name }}"
         day: "{{ borgmatic_cron_checks_day }}"
         hour: "{{ borgmatic_cron_checks_hour }}"
         minute: "{{ borgmatic_cron_checks_minute }}"
-        user: "root"
+        user: "{{ borgmatic_backup_user }}"
         cron_file: "{{ borgmatic_cron_name }}"
-        job: "borgmatic -c /etc/borgmatic/{{ borgmatic_config_name }} --check"
+        job: "borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }} --check"
   when: borgmatic_large_repo
 
 - name: Add cron-job for borgmatic (normal-sized repo)
   block:
     - name: Add cron job for create, check and prune
       cron:
-        name: "{{ borgmatic_cron_name }}"
+        name: "{{ borgmatic_cron_name }}-{{ borgmatic_config_name }}"
         hour: "{{ borgmatic_cron_hour }}"
         minute: "{{ borgmatic_cron_minute }}"
-        user: "root"
+        user: "{{ borgmatic_backup_user }}"
         cron_file: "{{ borgmatic_cron_name }}"
-        job: "borgmatic -c /etc/borgmatic/{{ borgmatic_config_name }}"
+        job: "borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }}"
     - name: Ensure separate check cron job is absent
       cron:
-        name: "{{ borgmatic_cron_name }}-check"
+        name: "{{ borgmatic_cron_name }}-check-{{ borgmatic_config_name }}"
         state: absent
   when: not borgmatic_large_repo
 
@@ -139,3 +140,18 @@
     name: PATH
     env: yes
     value: /usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+- name: Deploy public key to borg server
+  ansible.posix.authorized_key:
+    user: "{{ borg_server_user }}"
+    state: present
+    key: '{{ backup_user["ssh_public_key"] }}'
+    key_options: 'command="borg serve --restrict-to-path {{ borg_server_storage_path }}",restrict'
+  delegate_to: "{{ borg_server_host }}"
+  when: deploy_key 
+
+- name: initialize repository
+  ansible.builtin.shell:
+    cmd: "borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }} init -e repokey-blake2"
+  when: init_repo
+
