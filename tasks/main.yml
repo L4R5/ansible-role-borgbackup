@@ -42,6 +42,9 @@
     group: root
     mode: "0755"
 
+- name: Install cronic cron wrapper
+  copy: src=cronic-exporter dest=/opt/borgmatic/bin/cronic-exporter owner=root group=root mode="0755"
+
 - name: Ensure backup user has SSH key.
   user:
     name: "{{ borgmatic_backup_user }}"
@@ -105,7 +108,7 @@
         minute: "{{ borgmatic_cron_minute }}"
         user: "{{ borgmatic_backup_user }}"
         cron_file: "{{ borgmatic_cron_name }}"
-        job: "borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }} --create --prune"
+        job: "/opt/borgmatic/bin/cronic-exporter borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }} --create --prune"
     - name: Add cron job for infrequent checks
       cron:
         name: "{{ borgmatic_cron_name }}-check-{{ borgmatic_config_name }}"
@@ -114,7 +117,7 @@
         minute: "{{ borgmatic_cron_checks_minute }}"
         user: "{{ borgmatic_backup_user }}"
         cron_file: "{{ borgmatic_cron_name }}"
-        job: "borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }} --check"
+        job: "/opt/borgmatic/bin/cronic-exporter borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }} --check"
   when: borgmatic_large_repo
 
 - name: Add cron-job for borgmatic (normal-sized repo)
@@ -126,7 +129,7 @@
         minute: "{{ borgmatic_cron_minute }}"
         user: "{{ borgmatic_backup_user }}"
         cron_file: "{{ borgmatic_cron_name }}"
-        job: "borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }}"
+        job: "/opt/borgmatic/bin/cronic-exporter borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }}"
     - name: Ensure separate check cron job is absent
       cron:
         name: "{{ borgmatic_cron_name }}-check-{{ borgmatic_config_name }}"
