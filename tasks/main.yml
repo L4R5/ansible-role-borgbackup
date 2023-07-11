@@ -105,7 +105,7 @@
         minute: "{{ borgmatic_cron_minute }}"
         user: "{{ borgmatic_backup_user }}"
         cron_file: "{{ borgmatic_cron_name }}"
-        job: "cronic-exporter borgmatic_{{ borgmatic_backup_user }}_{{ borgmatic_config_name }} borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }} --create --prune"
+        job: "cronic-exporter borgmatic_{{ borgmatic_backup_user }}_{{ borgmatic_config_name }} borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }} -v -1 create prune"
     - name: Add cron job for infrequent checks
       cron:
         name: "{{ borgmatic_cron_name }}-check-{{ borgmatic_config_name }}"
@@ -114,7 +114,7 @@
         minute: "{{ borgmatic_cron_checks_minute }}"
         user: "{{ borgmatic_backup_user }}"
         cron_file: "{{ borgmatic_cron_name }}"
-        job: "cronic-exporter borgmatic_{{ borgmatic_backup_user }}_{{ borgmatic_config_name }} borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }} --check"
+        job: "cronic-exporter borgmatic_{{ borgmatic_backup_user }}_{{ borgmatic_config_name }} borgmatic -c {{ backup_user.home }}/.config/borgmatic/{{ borgmatic_config_name }} check"
   when: borgmatic_large_repo
 
 - name: Add cron-job for borgmatic (normal-sized repo)
