@@ -18,6 +18,6 @@ pip_bin: pip3
 
 borg_python_packages:
   #- cython
-  - pkgconfig
+  #- pkgconfig
   - borgbackup
   - borgmatic
